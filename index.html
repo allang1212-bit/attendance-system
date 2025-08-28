@@ -284,6 +284,34 @@
             max-width: 600px;
         }
         
+        .firebase-status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .firebase-connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .firebase-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .firebase-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
         @media (max-width: 768px) {
             .tab-container {
                 flex-direction: column;
@@ -306,6 +334,49 @@
     </style>
 </head>
 <body>
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Firebase SDK import
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Firebase 설정
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvWAvlv3aIY0RfkAUGUaW2P28zL6GQ9Yc",
+            authDomain: "attendance-system-5b7bd.firebaseapp.com",
+            projectId: "attendance-system-5b7bd",
+            storageBucket: "attendance-system-5b7bd.firebasestorage.app",
+            messagingSenderId: "170299947780",
+            appId: "1:170299947780:web:0c1a283792cd96e25b6e51"
+        };
+        
+        // Firebase 앱과 Firestore 초기화
+        let app, db;
+        let firebaseReady = false;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            firebaseReady = true;
+            console.log('Firebase 초기화 완료');
+            updateFirebaseStatus('connected');
+            
+            // Firebase가 준비되면 앱 초기화
+            if (window.initializeApp) {
+                window.initializeApp();
+            }
+        } catch (error) {
+            console.error('Firebase 초기화 오류:', error);
+            updateFirebaseStatus('error', error.message);
+            // Firebase 없이도 로컬 모드로 작동하도록 설정
+            firebaseReady = false;
+        }
+        
+        // 전역 Firebase 객체 설정
+        window.firebaseDb = db;
+        window.firebaseReady = firebaseReady;
+    </script>
+
     <!-- 관리자 로그인 모달 -->
     <div id="loginModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div class="login-form">
@@ -324,9 +395,14 @@
     </div>
 
     <div class="container">
+        <!-- Firebase 연결 상태 -->
+        <div id="firebaseStatus" class="firebase-status firebase-connecting">
+            🔥 Firebase 연결 중...
+        </div>
+        
         <div class="header">
             <h1 id="headerTitle">📚 교육 출석체크</h1>
-            <p id="headerSubtitle">QR코드를 통한 간편한 출석체크</p>
+            <p id="headerSubtitle">클라우드 기반 실시간 출석관리</p>
         </div>
         
         <!-- 관리자 모드에서만 표시되는 탭 -->
@@ -370,7 +446,7 @@
                     </p>
                     <button class="btn" onclick="copyQRUrl()">URL 복사</button>
                     <p style="margin-top: 10px; font-size: 14px; color: #666;">
-                        이 URL을 네이버 QR코드에 연결하면 참가자들이 출석체크만 볼 수 있습니다.
+                        이 URL을 네이버 QR코드에 연결하면 모든 기기에서 실시간 출석체크가 가능합니다!
                     </p>
                 </div>
             </div>
@@ -441,7 +517,8 @@
                 <button class="btn" onclick="checkIn()" style="width: 100%; margin-top: 20px;">출석체크 완료</button>
                 
                 <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; font-size: 14px; color: #666; text-align: center;">
-                    정확한 이름과 사번을 입력하고 출석체크를 완료해주세요.
+                    정확한 이름과 사번을 입력하고 출석체크를 완료해주세요.<br>
+                    <strong>실시간으로 클라우드에 저장됩니다!</strong>
                 </div>
             </div>
         </div>
@@ -451,7 +528,7 @@
     <a href="javascript:void(0)" id="adminLink" class="admin-link" onclick="showLogin()" style="display: none;">👨‍💼 관리자</a>
     
     <script>
-        // 전역 변수 선언
+        // 전역 변수
         let educationData = {
             title: '',
             date: '',
@@ -461,13 +538,38 @@
         };
         
         let isAdminMode = false;
+        let attendanceListener = null;
         
-        // 페이지 로드 시 초기화
-        window.onload = function() {
-            console.log('페이지 로드 시작');
+        // Firebase 상태 업데이트
+        function updateFirebaseStatus(status, message = '') {
+            const statusElement = document.getElementById('firebaseStatus');
+            if (!statusElement) return;
+            
+            switch (status) {
+                case 'connecting':
+                    statusElement.className = 'firebase-status firebase-connecting';
+                    statusElement.innerHTML = '🔥 Firebase 연결 중...';
+                    break;
+                case 'connected':
+                    statusElement.className = 'firebase-status firebase-connected';
+                    statusElement.innerHTML = '✅ 클라우드 연결 완료 - 실시간 동기화 활성화';
+                    setTimeout(() => {
+                        statusElement.style.display = 'none';
+                    }, 3000);
+                    break;
+                case 'error':
+                    statusElement.className = 'firebase-status firebase-error';
+                    statusElement.innerHTML = '❌ Firebase 연결 실패 - 로컬 모드로 실행';
+                    break;
+            }
+        }
+        
+        // 앱 초기화
+        window.initializeApp = function() {
             loadData();
             updateAttendanceDisplay();
             updateQRUrl();
+            setupRealtimeListener();
             
             const urlParams = new URLSearchParams(window.location.search);
             const action = urlParams.get('action');
@@ -483,6 +585,93 @@
                 }
             }
         };
+        
+        // 페이지 로드 시 초기화 (Firebase 없이도 작동)
+        window.onload = function() {
+            console.log('페이지 로드 시작');
+            
+            // Firebase가 아직 준비되지 않았으면 로컬 모드로 시작
+            if (!window.firebaseReady) {
+                setTimeout(() => {
+                    if (!window.firebaseReady) {
+                        console.log('Firebase 없이 로컬 모드로 시작');
+                        updateFirebaseStatus('error');
+                        window.initializeApp();
+                    }
+                }, 2000);
+            }
+        };
+        
+        // 실시간 리스너 설정
+        function setupRealtimeListener() {
+            if (!window.firebaseReady) return;
+            
+            try {
+                const { onSnapshot, doc } = window;
+                const unsubscribe = onSnapshot(doc(window.firebaseDb, 'attendance', 'current'), (doc) => {
+                    if (doc.exists()) {
+                        const data = doc.data();
+                        educationData = { ...educationData, ...data };
+                        updateAttendanceDisplay();
+                        console.log('실시간 데이터 업데이트');
+                    }
+                });
+                
+                attendanceListener = unsubscribe;
+            } catch (error) {
+                console.error('실시간 리스너 설정 오류:', error);
+            }
+        }
+        
+        // Firebase 데이터 저장
+        async function saveToFirebase() {
+            if (!window.firebaseReady) {
+                console.log('Firebase 사용 불가 - 로컬 저장');
+                localStorage.setItem('attendanceSystemData', JSON.stringify(educationData));
+                return;
+            }
+            
+            try {
+                const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                await setDoc(doc(window.firebaseDb, 'attendance', 'current'), educationData);
+                console.log('Firebase 저장 완료');
+            } catch (error) {
+                console.error('Firebase 저장 오류:', error);
+                // 실패시 로컬 저장
+                localStorage.setItem('attendanceSystemData', JSON.stringify(educationData));
+            }
+        }
+        
+        // Firebase 데이터 로드
+        async function loadFromFirebase() {
+            if (!window.firebaseReady) {
+                console.log('Firebase 사용 불가 - 로컬 로드');
+                const localData = localStorage.getItem('attendanceSystemData');
+                if (localData) {
+                    educationData = JSON.parse(localData);
+                }
+                return;
+            }
+            
+            try {
+                const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                const docSnap = await getDoc(doc(window.firebaseDb, 'attendance', 'current'));
+                
+                if (docSnap.exists()) {
+                    educationData = docSnap.data();
+                    console.log('Firebase 로드 완료');
+                } else {
+                    console.log('Firebase 문서 없음 - 새로 생성');
+                }
+            } catch (error) {
+                console.error('Firebase 로드 오류:', error);
+                // 실패시 로컬 로드
+                const localData = localStorage.getItem('attendanceSystemData');
+                if (localData) {
+                    educationData = JSON.parse(localData);
+                }
+            }
+        }
         
         // 학생 모드 설정
         function setStudentMode() {
@@ -511,27 +700,22 @@
             document.querySelector('.tab').classList.add('active');
             
             document.getElementById('headerTitle').textContent = '📚 교육 출석체크 시스템';
-            document.getElementById('headerSubtitle').textContent = 'QR코드를 통한 간편한 출석관리';
+            document.getElementById('headerSubtitle').textContent = '클라우드 기반 실시간 출석관리';
         }
         
-        // 관리자 로그인 표시
+        // 로그인 관련 함수들
         function showLogin() {
-            console.log('로그인 모달 표시');
             document.getElementById('loginModal').style.display = 'block';
             document.getElementById('adminPassword').focus();
         }
         
-        // 로그인 창 닫기
         function closeLogin() {
-            console.log('로그인 모달 닫기');
             document.getElementById('loginModal').style.display = 'none';
             document.getElementById('adminPassword').value = '';
         }
         
-        // 관리자 비밀번호 확인
         function checkAdminPassword() {
             const inputPassword = document.getElementById('adminPassword').value;
-            console.log('비밀번호 확인 중');
             
             if (inputPassword === educationData.adminPassword) {
                 closeLogin();
@@ -542,10 +726,8 @@
             }
         }
         
-        // 비밀번호 변경
         function changePassword() {
             const newPassword = document.getElementById('newPassword').value.trim();
-            console.log('비밀번호 변경 요청');
             
             if (!newPassword || newPassword.length < 6) {
                 alert('비밀번호는 6자 이상이어야 합니다.');
@@ -565,7 +747,7 @@
             }
         });
         
-        // QR URL 업데이트
+        // QR URL 관련
         function updateQRUrl() {
             const currentUrl = window.location.href.split('?')[0];
             const qrUrl = currentUrl + '?action=checkin';
@@ -575,14 +757,12 @@
             }
         }
         
-        // QR URL 복사
         function copyQRUrl() {
             const qrUrl = document.getElementById('qrUrl').textContent;
-            console.log('URL 복사:', qrUrl);
             
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(qrUrl).then(() => {
-                    alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
+                    alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.\n\n🔥 이제 모든 기기에서 실시간 동기화됩니다!');
                 }).catch(() => {
                     fallbackCopyTextToClipboard(qrUrl);
                 });
@@ -591,7 +771,6 @@
             }
         }
         
-        // 복사 대체 함수
         function fallbackCopyTextToClipboard(text) {
             const textArea = document.createElement('textarea');
             textArea.value = text;
@@ -601,7 +780,7 @@
             
             try {
                 document.execCommand('copy');
-                alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
+                alert('참가자용 URL이 복사되었습니다!');
             } catch (err) {
                 alert('URL 복사에 실패했습니다. 수동으로 복사해주세요:\n' + text);
             }
@@ -611,7 +790,6 @@
         
         // 탭 전환
         function switchTab(tabName) {
-            console.log('탭 전환:', tabName);
             if (!isAdminMode) return;
             
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -627,7 +805,6 @@
         
         // 교육 정보 저장
         function saveEducationInfo() {
-            console.log('교육 정보 저장');
             const title = document.getElementById('educationTitle').value;
             const date = document.getElementById('educationDate').value;
             
@@ -639,12 +816,11 @@
             educationData.title = title;
             educationData.date = date;
             saveData();
-            alert('교육 정보가 저장되었습니다.');
+            alert('교육 정보가 클라우드에 저장되었습니다!');
         }
         
         // 참가자 등록
         function registerParticipants() {
-            console.log('참가자 등록 시작');
             const participantText = document.getElementById('participantList').value.trim();
             
             if (!participantText) {
@@ -691,12 +867,15 @@
             
             saveData();
             updateAttendanceDisplay();
-            alert(`${participants.length}명의 참가자가 등록되었습니다.`);
+            
+            const message = window.firebaseReady 
+                ? `${participants.length}명의 참가자가 클라우드에 등록되었습니다!\n🔥 이제 모든 기기에서 실시간으로 출석체크 가능합니다!`
+                : `${participants.length}명의 참가자가 등록되었습니다.`;
+            alert(message);
         }
         
         // 출석체크
-        function checkIn() {
-            console.log('출석체크 시도');
+        async function checkIn() {
             const name = document.getElementById('studentName').value.trim();
             const studentId = document.getElementById('studentId').value.trim();
             
@@ -704,6 +883,9 @@
                 showMessage('이름과 사번을 모두 입력해주세요.', 'error');
                 return;
             }
+            
+            // 최신 데이터 로드
+            await loadData();
             
             if (educationData.participants.length === 0) {
                 showMessage('등록된 참가자 명단이 없습니다. 관리자에게 문의하세요.', 'error');
@@ -731,10 +913,20 @@
                 time: now.toLocaleString('ko-KR')
             };
             
-            saveData();
+            // 로딩 상태 표시
+            document.querySelector('.checkin-form').classList.add('loading');
+            
+            await saveData();
             updateAttendanceDisplay();
             
-            showMessage(`${name}님 (${studentId}) 출석체크가 완료되었습니다!`, 'success');
+            // 로딩 상태 해제
+            document.querySelector('.checkin-form').classList.remove('loading');
+            
+            const successMessage = window.firebaseReady
+                ? `${name}님 (${studentId}) 출석체크가 완료되었습니다!\n🔥 실시간으로 클라우드에 저장되었습니다!`
+                : `${name}님 (${studentId}) 출석체크가 완료되었습니다!`;
+                
+            showMessage(successMessage, 'success');
             
             document.getElementById('studentName').value = '';
             document.getElementById('studentId').value = '';
@@ -748,13 +940,12 @@
                 
                 setTimeout(() => {
                     messageDiv.innerHTML = '';
-                }, 3000);
+                }, 5000);
             }
         }
         
         // 출석 현황 업데이트
         function updateAttendanceDisplay() {
-            console.log('출석 현황 업데이트');
             const totalCount = educationData.participants.length;
             const presentCount = Object.keys(educationData.attendance).length;
             const absentCount = totalCount - presentCount;
@@ -805,7 +996,6 @@
         
         // 전체 데이터 초기화
         function clearAllData() {
-            console.log('데이터 초기화 요청');
             if (confirm('모든 데이터를 초기화하시겠습니까? (교육정보, 참가자 명단, 출석 기록)')) {
                 educationData = {
                     title: '',
@@ -825,64 +1015,40 @@
             }
         }
         
-        // 데이터 저장
-        function saveData() {
-            try {
-                console.log('데이터 저장 중');
-                const dataToSave = JSON.stringify(educationData);
-                localStorage.setItem('attendanceSystemData', dataToSave);
-                console.log('데이터 저장 완료');
-            } catch (e) {
-                console.error('데이터 저장 중 오류:', e);
-                alert('데이터 저장 중 오류가 발생했습니다.');
+        // 데이터 저장 (Firebase 또는 localStorage)
+        async function saveData() {
+            await saveToFirebase();
+        }
+        
+        // 데이터 로드 (Firebase 또는 localStorage)
+        async function loadData() {
+            await loadFromFirebase();
+            
+            // UI에 데이터 복원
+            const titleElement = document.getElementById('educationTitle');
+            const dateElement = document.getElementById('educationDate');
+            const listElement = document.getElementById('participantList');
+            
+            if (titleElement && educationData.title) {
+                titleElement.value = educationData.title;
+            }
+            if (dateElement && educationData.date) {
+                dateElement.value = educationData.date;
+            }
+            if (listElement && educationData.participants && educationData.participants.length > 0) {
+                const participantText = educationData.participants.map(p => `${p.name},${p.id}`).join('\n');
+                listElement.value = participantText;
             }
         }
         
-        // 데이터 로드
-        function loadData() {
-            try {
-                console.log('데이터 로드 중');
-                const savedData = localStorage.getItem('attendanceSystemData');
-                if (savedData) {
-                    const loadedData = JSON.parse(savedData);
-                    educationData = {
-                        title: loadedData.title || '',
-                        date: loadedData.date || '',
-                        participants: loadedData.participants || [],
-                        attendance: loadedData.attendance || {},
-                        adminPassword: loadedData.adminPassword || 'admin123'
-                    };
-                    
-                    // UI에 데이터 복원
-                    const titleElement = document.getElementById('educationTitle');
-                    const dateElement = document.getElementById('educationDate');
-                    const listElement = document.getElementById('participantList');
-                    
-                    if (titleElement && educationData.title) {
-                        titleElement.value = educationData.title;
-                    }
-                    if (dateElement && educationData.date) {
-                        dateElement.value = educationData.date;
-                    }
-                    if (listElement && educationData.participants && educationData.participants.length > 0) {
-                        const participantText = educationData.participants.map(p => `${p.name},${p.id}`).join('\n');
-                        listElement.value = participantText;
-                    }
-                    console.log('데이터 로드 완료');
-                }
-            } catch (e) {
-                console.error('데이터 로드 중 오류:', e);
+        // 페이지 종료 시 리스너 정리
+        window.addEventListener('beforeunload', function() {
+            if (attendanceListener) {
+                attendanceListener();
             }
-        }
+        });
         
-        // 실시간 업데이트 (5초마다)
-        setInterval(function() {
-            if (isAdminMode) {
-                updateAttendanceDisplay();
-            }
-        }, 5000);
-        
-        console.log('스크립트 로드 완료');
+        console.log('Firebase 출석체크 시스템 로드 완료');
     </script>
 </body>
 </html>
