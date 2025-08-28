@@ -75,7 +75,6 @@
             display: block;
         }
         
-        /* 관리자 패널 스타일 */
         .admin-section {
             margin-bottom: 30px;
             padding: 20px;
@@ -145,7 +144,6 @@
             background: #5a6268;
         }
         
-        /* 출석 현황 스타일 */
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -213,7 +211,6 @@
             color: white;
         }
         
-        /* 학생 출석체크 스타일 */
         .checkin-form {
             max-width: 500px;
             margin: 0 auto;
@@ -249,7 +246,6 @@
             text-align: center;
         }
         
-        /* 관리자 로그인 */
         .login-form {
             max-width: 400px;
             margin: 50px auto;
@@ -276,7 +272,6 @@
             background: #5a6268;
         }
         
-        /* 학생 전용 모드 */
         .student-mode .tab-container {
             display: none;
         }
@@ -453,10 +448,10 @@
     </div>
     
     <!-- 관리자 모드 링크 (학생 모드에서만 표시) -->
-    <a href="#" id="adminLink" class="admin-link" onclick="showLogin()" style="display: none;">👨‍💼 관리자</a>
+    <a href="javascript:void(0)" id="adminLink" class="admin-link" onclick="showLogin()" style="display: none;">👨‍💼 관리자</a>
     
     <script>
-        // 데이터 저장소
+        // 전역 변수 선언
         let educationData = {
             title: '',
             date: '',
@@ -467,21 +462,19 @@
         
         let isAdminMode = false;
         
-        // 페이지 로드시 초기화
+        // 페이지 로드 시 초기화
         window.onload = function() {
+            console.log('페이지 로드 시작');
             loadData();
             updateAttendanceDisplay();
             updateQRUrl();
             
-            // URL 파라미터 확인
             const urlParams = new URLSearchParams(window.location.search);
             const action = urlParams.get('action');
             
             if (action === 'checkin') {
-                // 학생 모드로 설정
                 setStudentMode();
             } else {
-                // 관리자 모드 확인
                 const isAdmin = urlParams.get('admin');
                 if (isAdmin === 'true') {
                     showLogin();
@@ -493,44 +486,44 @@
         
         // 학생 모드 설정
         function setStudentMode() {
+            console.log('학생 모드 설정');
             isAdminMode = false;
             document.body.classList.add('student-mode');
             document.getElementById('adminLink').style.display = 'block';
             
-            // 출석체크 탭만 표시
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById('checkin').classList.add('active');
             
-            // 헤더 변경
             document.getElementById('headerTitle').textContent = '📚 교육 출석체크';
             document.getElementById('headerSubtitle').textContent = '아래 양식을 작성하여 출석체크를 완료해주세요';
         }
         
         // 관리자 모드 설정
         function setAdminMode() {
+            console.log('관리자 모드 설정');
             isAdminMode = true;
             document.body.classList.remove('student-mode');
             document.getElementById('adminLink').style.display = 'none';
             
-            // 모든 탭 표시
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById('admin').classList.add('active');
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelector('.tab').classList.add('active');
             
-            // 헤더 변경
             document.getElementById('headerTitle').textContent = '📚 교육 출석체크 시스템';
             document.getElementById('headerSubtitle').textContent = 'QR코드를 통한 간편한 출석관리';
         }
         
         // 관리자 로그인 표시
         function showLogin() {
+            console.log('로그인 모달 표시');
             document.getElementById('loginModal').style.display = 'block';
             document.getElementById('adminPassword').focus();
         }
         
         // 로그인 창 닫기
         function closeLogin() {
+            console.log('로그인 모달 닫기');
             document.getElementById('loginModal').style.display = 'none';
             document.getElementById('adminPassword').value = '';
         }
@@ -538,6 +531,7 @@
         // 관리자 비밀번호 확인
         function checkAdminPassword() {
             const inputPassword = document.getElementById('adminPassword').value;
+            console.log('비밀번호 확인 중');
             
             if (inputPassword === educationData.adminPassword) {
                 closeLogin();
@@ -551,6 +545,7 @@
         // 비밀번호 변경
         function changePassword() {
             const newPassword = document.getElementById('newPassword').value.trim();
+            console.log('비밀번호 변경 요청');
             
             if (!newPassword || newPassword.length < 6) {
                 alert('비밀번호는 6자 이상이어야 합니다.');
@@ -574,27 +569,49 @@
         function updateQRUrl() {
             const currentUrl = window.location.href.split('?')[0];
             const qrUrl = currentUrl + '?action=checkin';
-            document.getElementById('qrUrl').textContent = qrUrl;
+            const urlElement = document.getElementById('qrUrl');
+            if (urlElement) {
+                urlElement.textContent = qrUrl;
+            }
         }
         
         // QR URL 복사
         function copyQRUrl() {
             const qrUrl = document.getElementById('qrUrl').textContent;
-            navigator.clipboard.writeText(qrUrl).then(() => {
-                alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
-            }).catch(() => {
-                const textArea = document.createElement('textarea');
-                textArea.value = qrUrl;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
-            });
+            console.log('URL 복사:', qrUrl);
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(qrUrl).then(() => {
+                    alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
+                }).catch(() => {
+                    fallbackCopyTextToClipboard(qrUrl);
+                });
+            } else {
+                fallbackCopyTextToClipboard(qrUrl);
+            }
         }
         
-        // 탭 전환 (관리자 모드에서만)
+        // 복사 대체 함수
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                alert('참가자용 URL이 복사되었습니다!\n네이버 QR코드 관리에서 이 URL을 연결해주세요.');
+            } catch (err) {
+                alert('URL 복사에 실패했습니다. 수동으로 복사해주세요:\n' + text);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // 탭 전환
         function switchTab(tabName) {
+            console.log('탭 전환:', tabName);
             if (!isAdminMode) return;
             
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -610,6 +627,7 @@
         
         // 교육 정보 저장
         function saveEducationInfo() {
+            console.log('교육 정보 저장');
             const title = document.getElementById('educationTitle').value;
             const date = document.getElementById('educationDate').value;
             
@@ -626,6 +644,7 @@
         
         // 참가자 등록
         function registerParticipants() {
+            console.log('참가자 등록 시작');
             const participantText = document.getElementById('participantList').value.trim();
             
             if (!participantText) {
@@ -659,6 +678,8 @@
             }
             
             educationData.participants = participants;
+            
+            // 기존 출석 데이터 정리
             const newAttendance = {};
             participants.forEach(person => {
                 const key = `${person.name}_${person.id}`;
@@ -675,6 +696,7 @@
         
         // 출석체크
         function checkIn() {
+            console.log('출석체크 시도');
             const name = document.getElementById('studentName').value.trim();
             const studentId = document.getElementById('studentId').value.trim();
             
@@ -701,6 +723,7 @@
                 return;
             }
             
+            // 출석 처리
             const now = new Date();
             educationData.attendance[attendanceKey] = {
                 name: name,
@@ -720,26 +743,35 @@
         // 메시지 표시
         function showMessage(message, type) {
             const messageDiv = document.getElementById('checkinMessage');
-            messageDiv.innerHTML = `<div class="${type}-message">${message}</div>`;
-            
-            setTimeout(() => {
-                messageDiv.innerHTML = '';
-            }, 3000);
+            if (messageDiv) {
+                messageDiv.innerHTML = `<div class="${type}-message">${message}</div>`;
+                
+                setTimeout(() => {
+                    messageDiv.innerHTML = '';
+                }, 3000);
+            }
         }
         
         // 출석 현황 업데이트
         function updateAttendanceDisplay() {
+            console.log('출석 현황 업데이트');
             const totalCount = educationData.participants.length;
             const presentCount = Object.keys(educationData.attendance).length;
             const absentCount = totalCount - presentCount;
             const attendanceRate = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
             
-            document.getElementById('totalCount').textContent = totalCount;
-            document.getElementById('presentCount').textContent = presentCount;
-            document.getElementById('absentCount').textContent = absentCount;
-            document.getElementById('attendanceRate').textContent = attendanceRate + '%';
+            const totalElement = document.getElementById('totalCount');
+            const presentElement = document.getElementById('presentCount');
+            const absentElement = document.getElementById('absentCount');
+            const rateElement = document.getElementById('attendanceRate');
+            
+            if (totalElement) totalElement.textContent = totalCount;
+            if (presentElement) presentElement.textContent = presentCount;
+            if (absentElement) absentElement.textContent = absentCount;
+            if (rateElement) rateElement.textContent = attendanceRate + '%';
             
             const listBody = document.getElementById('attendanceListBody');
+            if (!listBody) return;
             
             if (totalCount === 0) {
                 listBody.innerHTML = `
@@ -773,6 +805,7 @@
         
         // 전체 데이터 초기화
         function clearAllData() {
+            console.log('데이터 초기화 요청');
             if (confirm('모든 데이터를 초기화하시겠습니까? (교육정보, 참가자 명단, 출석 기록)')) {
                 educationData = {
                     title: '',
@@ -795,20 +828,23 @@
         // 데이터 저장
         function saveData() {
             try {
+                console.log('데이터 저장 중');
                 const dataToSave = JSON.stringify(educationData);
                 localStorage.setItem('attendanceSystemData', dataToSave);
+                console.log('데이터 저장 완료');
             } catch (e) {
                 console.error('데이터 저장 중 오류:', e);
+                alert('데이터 저장 중 오류가 발생했습니다.');
             }
         }
         
         // 데이터 로드
         function loadData() {
             try {
+                console.log('데이터 로드 중');
                 const savedData = localStorage.getItem('attendanceSystemData');
                 if (savedData) {
                     const loadedData = JSON.parse(savedData);
-                    // 기존 데이터 구조와 병합
                     educationData = {
                         title: loadedData.title || '',
                         date: loadedData.date || '',
@@ -818,24 +854,35 @@
                     };
                     
                     // UI에 데이터 복원
-                    if (educationData.title) {
-                        document.getElementById('educationTitle').value = educationData.title;
+                    const titleElement = document.getElementById('educationTitle');
+                    const dateElement = document.getElementById('educationDate');
+                    const listElement = document.getElementById('participantList');
+                    
+                    if (titleElement && educationData.title) {
+                        titleElement.value = educationData.title;
                     }
-                    if (educationData.date) {
-                        document.getElementById('educationDate').value = educationData.date;
+                    if (dateElement && educationData.date) {
+                        dateElement.value = educationData.date;
                     }
-                    if (educationData.participants && educationData.participants.length > 0) {
+                    if (listElement && educationData.participants && educationData.participants.length > 0) {
                         const participantText = educationData.participants.map(p => `${p.name},${p.id}`).join('\n');
-                        document.getElementById('participantList').value = participantText;
+                        listElement.value = participantText;
                     }
+                    console.log('데이터 로드 완료');
                 }
             } catch (e) {
                 console.error('데이터 로드 중 오류:', e);
             }
         }
         
-        // 실시간 업데이트
-        setInterval(updateAttendanceDisplay, 5000);
+        // 실시간 업데이트 (5초마다)
+        setInterval(function() {
+            if (isAdminMode) {
+                updateAttendanceDisplay();
+            }
+        }, 5000);
+        
+        console.log('스크립트 로드 완료');
     </script>
 </body>
 </html>
